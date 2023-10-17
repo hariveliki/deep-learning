@@ -160,3 +160,8 @@ cython_debug/
 #.idea/
 data
 wandb
+.vscode/
+inception.ipynb
+resnet.ipynb
+sandbox.ipynb
+vgg.ipynb

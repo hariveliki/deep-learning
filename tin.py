@@ -1,10 +1,10 @@
 import imageio
 import numpy as np
 import os
-
+import torch
 from collections import defaultdict
 from torch.utils.data import Dataset
-
+from PIL import Image
 from tqdm.autonotebook import tqdm
 
 dir_structure_help = r"""
@@ -190,17 +190,20 @@ class TinyImageNetDataset(Dataset):
   def __len__(self):
     return self.samples_num
 
+
   def __getitem__(self, idx):
     if self.preload:
       img = self.img_data[idx]
       lbl = None if self.mode == 'test' else self.label_data[idx]
     else:
       s = self.samples[idx]
-      img = _add_channels(img)
       img = imageio.imread(s[0])
+      img = _add_channels(img)
       lbl = None if self.mode == 'test' else s[self.label_idx]
     sample = {'image': img, 'label': lbl}
 
     if self.transform:
-      sample = self.transform(sample)
+      img = Image.fromarray(img.astype(np.uint8))
+      img = self.transform(img)
+      sample["image"] = img
     return sample
