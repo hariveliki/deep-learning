@@ -1,3 +1,4 @@
+import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
@@ -21,6 +22,8 @@ class TinyDataset(Dataset):
         sample = self.dataset[idx]
         image = sample["image"]
         label = sample["label"]
-        image = self.transform(image) 
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        image = self.transform(image)
         return image, label
 
