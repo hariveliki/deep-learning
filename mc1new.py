@@ -1051,38 +1051,193 @@ plot_regularization_results(dropout_results)
 # 
 # Even though all regularization methods were effective, dropout showed clear improvement for the validation set across all configurations. While the baseline model's validation loss started to increase, models with dropout continued to learn and improve their accuracy.
 
-# # Batchnorm (without REG, with SGD)
-# - Evaluate whether Batchnorm is useful. Describe what the idea of BN is, what it is supposed to help.
+# # Batch Normalization (without REG, with SGD)
+# 
+# Batch Normalization is a technique to normalize the inputs to each layer in the network.
+# 
+# For a batch of size m, given input x, BatchNorm computes:
+# 
+# $$ \text{BatchNorm}(x) = \gamma \frac{x - \mu_B}{\sqrt{\sigma_B^2 + \epsilon}} + \beta $$
+# 
+# where:
+# - μᵦ is the batch mean
+# - σᵦ² is the batch variance
+# - ε is a small constant for numerical stability
+# - γ, β are learnable parameters
+# 
+# For each feature (channel):
+# 
+# 1. Normalizes the values across the current batch to have zero mean and unit variance
+# 2. Applies learnable scale (γ) and shift (β) parameters
+# 3. During backprop, these parameters are updated along with the rest of the networks weights, to learn the optimal scale and shift for each feature.
+# 
+# Key benefits:
+# - Reduces internal covariate shift (changes in the distribution of layer inputs during training)
+# - Faster convergence
+# - Allows higher learning rates
+# - Helps mitigate vanishing/exploding gradients by keeping activations in a reasonable range
+
+import json
+
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+train_loader, valid_loader = get_data(batch_size=64, seed=42)
+criterion = nn.CrossEntropyLoss()
+batchnorm_results = {}
+batch_confs = [
+    {"name": "Batchnorm", "batch_norm": True},
+    {"name": "No Batchnorm", "batch_norm": False},
+]
+for conf in batch_confs:
+    confs = [
+        ("C", {"kernel": 3, "channels": 16, "batch_norm": conf["batch_norm"]}),
+        ("C", {"kernel": 3, "channels": 32, "batch_norm": conf["batch_norm"]}),
+        ("P", {"kernel": 2}),
+        ("C", {"kernel": 3, "channels": 64, "batch_norm": conf["batch_norm"]}),
+        ("C", {"kernel": 3, "channels": 64, "batch_norm": conf["batch_norm"]}),
+        ("P", {"kernel": 2}),
+        ("C", {"kernel": 3, "channels": 128, "batch_norm": conf["batch_norm"]}),
+        ("C", {"kernel": 3, "channels": 128, "batch_norm": conf["batch_norm"]}),
+        ("P", {"kernel": 2}),
+        ("L", {"units": 500, "batch_norm": conf["batch_norm"]}),
+        ("L", {"units": 200, "batch_norm": conf["batch_norm"]}),
+    ]
+    model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
+    optimizer = optim.SGD(model.parameters(), lr=0.01)
+    model.to(device)
+    history = train(
+        model,
+        epochs=15,
+        train_loader=train_loader,
+        valid_loader=valid_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        l1_lambda=0,
+        l2_lambda=0,
+    )
+    batchnorm_results[conf["name"]] = history
+
+with open("results/batchnorm_results.json", "w") as f:
+    json.dump(batchnorm_results, f)
 
 
+import importlib
+import plot_reg
+importlib.reload(plot_reg)
+from plot_reg import plot_regularization_results
+plot_regularization_results(batchnorm_results)
 
 
 # ## Discussion
+# 
+# We observe:
+# 
+# - Convergence was achieved significantly faster compared to baseline
+# - Signs of overfitting were observed after 8 epochs
+# - Higher accuracy was demonstrated overall
+# 
+# 1. **Convergence and Overfitting**
+#    - Faster convergence can be attributed to gradient updates that were stabilized and covariate shift that was reduced
+#    - Earlier overfitting was triggered by this accelerated training
+#    - Faster Training = Faster Overfitting
+# 
+# 2. **Considerations**
+# 
+#    a) **Early Stopping**
+#       - Training could be terminated around epoch 8 when validation metrics begin to diverge
+# 
+#    b) **Batch Statistics**
+#       - Differences between training and validation batch statistics should be anticipated
+#       - Smaller Batch = Greater Noise
+#       - Larger batch sizes could be considered
+# 
+#    c) **Additional Regularization**
+#       - BatchNorm could be combined with other regularization techniques like dropout or L2, to prevent overfitting
 
 # # Adam
-# - Explain
+# 
+# Adam is an optimizer that maintains two additional values for each parameter:
+# 
+# - A running average of past gradients (momentum)
+# - A running average of squared past gradients (velocity)
+# 
+# By doing so:
+# 
+# - Each parameter's learning rate is adjusted based on its gradient history
+# - Parameters that receive **large** or **frequent** updates will get smaller learning rates
+# - Parameters that receive **smaller** or **less frequent** updates will get bigger learning rates
+# 
+# Expectations:
+# - Adam should converge faster compared to SGD
+# - Adam with regularization could mitigate overfitting
 
-# ## Without BN, without REG
-# - Explain
+import matplotlib.pyplot as plt
+import json
 
-def my_code():
-    pass
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+train_loader, valid_loader = get_data(batch_size=64, seed=42)
+criterion = nn.CrossEntropyLoss()
+adam_configs = [
+    {"name": "SGD"},
+    {"name": "Adam"},
+    {"name": "Adam L1", "l1": 0.0001},
+    {"name": "Adam L2", "l2": 0.1},
+    {"name": "Adam Dropout", "dropout": 0.4},
+]
+adam_results = {}
+for config in adam_configs:
+    confs = [
+        ("C", {"kernel": 3, "channels": 16}),
+        ("C", {"kernel": 3, "channels": 32}),
+        ("P", {"kernel": 2}),
+        ("C", {"kernel": 3, "channels": 64}),
+        ("C", {"kernel": 3, "channels": 64}),
+        ("P", {"kernel": 2}),
+        ("C", {"kernel": 3, "channels": 128}),
+        ("C", {"kernel": 3, "channels": 128}),
+        ("P", {"kernel": 2}),
+        ("L", {"units": 500, "dropout": config.get("dropout", 0)}),
+        ("L", {"units": 200, "dropout": config.get("dropout", 0) * 0.5}),
+    ]
+    model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
+    if "Adam" in config["name"]:
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+    elif "SGD" in config["name"]:
+        optimizer = optim.SGD(model.parameters(), lr=0.01)
+    else:
+        raise ValueError(f"Invalid optimizer: {config['name']}")
+    model.to(device)
+    history = train(
+        model,
+        epochs=10,
+        train_loader=train_loader,
+        valid_loader=valid_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        l1_lambda=config.get("l1", 0),
+        l2_lambda=config.get("l2", 0),
+    )
+    adam_results[config["name"]] = history
+
+with open("adam.json", "w") as f:
+    json.dump(adam_results, f)
 
 
-# ## Without BN, with REG
-# - Explain
-
-def my_code():
-    pass
+import importlib
+import plot_reg
+importlib.reload(plot_reg)
+from plot_reg import plot_regularization_results
+plot_regularization_results(adam_results)
 
 
 # ## Discussion
 
-# # Transfer Learning
-# - Explain
+# # Analysis Confidence
+# 
+# By training the model with k-fold cross validation we will estimate an confidence interval, to which extend the model will make errors
 
-def my_code():
-    pass
+
 
 
 # ## Discussion
