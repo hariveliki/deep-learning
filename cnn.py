@@ -66,6 +66,8 @@ class CNN(nn.Module):
             else:
                 self.net.append(nn.Linear(current_units, conf["units"]))
                 current_units = conf["units"]  # Update current units
+                if conf.get("batch_norm", False):
+                    self.net.append(nn.BatchNorm1d(conf["units"]))
                 self.net.append(nn.ReLU())
                 if conf.get("dropout", 0):
                     self.net.append(nn.Dropout(conf["dropout"]))

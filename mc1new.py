@@ -890,7 +890,7 @@ reg_configs = [
         "l2_lambda": 0.01,
     },
 ]
-results = {}
+l2_results = {}
 for reg_config in reg_configs:
     print(reg_config["name"])
     model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
@@ -907,45 +907,154 @@ for reg_config in reg_configs:
         l1_lambda=reg_config["l1_lambda"],
         l2_lambda=reg_config["l2_lambda"],
     )
-    results[reg_config["name"]] = history
+    l2_results[reg_config["name"]] = history
     print("\n")
+
+import json
+with open("l2_results.json", "w") as f:
+    json.dump(l2_results, f)
 
 
 import importlib
 import plot_reg
 importlib.reload(plot_reg)
 from plot_reg import plot_regularization_results
-plot_regularization_results(results)
+plot_regularization_results(l2_results)
 
 
 # ### Discussion
 # 
-# 1. **Impact of High Regularization**
+# `TODO run 15 epochs`
 # 
+# **L1 Regularization**
+# 
+# 1. **Impact of High Regularization**
 #    - When the regularization strength is too high (λ ∈ {0.001, 0.01}):
-#      - The model shows little to no improvement during training
-#      - Both training and validation losses remain nearly constant
-#      - The plateaued loss indicates that the strong regularization leads to a suboptimal solution, where the model is underfitting
+#      - The model fails to learn effectively, as indicated by plateaued loss and accuracy.
+#      - By adding the absolute values of the weights to the loss function, L1 regularization encourages sparsity.
+#      - Weights are forced to zero, resulting in little to no improvement during training.
 # 
 # 2. **Benefits of Appropriate Regularization**
-#    - With correctly chosen regularization strength, e.g. (λ = 0.0001):
-#      - The model shows better performance on the validation set, while the unregularized model's validation loss increases over time (indicating overfitting)
+#    - With a correctly chosen regularization strength (e.g., λ = 0.0001):
+#      - The model shows better performance on the validation set.
+#      - Unlike the unregularized model, which experiences an increase in validation loss after a certain point, the regularized model maintains or continues to decrease validation loss for up to 10 epochs.
 # 
+# **L2 Regularization**
+# 
+# - **Observations**:
+#   - Compared to L1, L2 regularization does not have as strong effects on the weights.
+#   - Training and validation losses align much more closely with those of the unregularized variant.
+#   - Even higher λ values for L2 still allow the model to learn effectively.
+#   - Experimenting with higher penalties compared to L1 could reveal clearer generalization benefits.
+# 
+# `TODO write conclusion`
 
 # ## Dropout
-# - Explain
+# 
+# We will apply dropout to the fully connected (linear) layers because:
+# - These layers contain the majority of the model's parameters and hence are most prone to overfitting.
+# 
+# The dropout probabilities will be proportional to the number of parameters in each layer:
+# - First linear layer: Higher dropout rate (e.g., 0.3)
+#   - Contains more parameters due to the transition from convolutional features
+#   - Maps from flattened conv output to units
+# - Second linear layer: Lower dropout rate (e.g., 0.1)
+#   - Contains fewer parameters
+#   - Maps from units to units
+# 
+# To evaluate the effectiveness of dropout, we'll compare three dropout configurations against a baseline.
+# 
+# For example:
+# 1. Baseline (no dropout)
+# 2. Light dropout (0.2, 0.1)
+# 3. Moderate dropout (0.3, 0.1)
+# 4. Heavy dropout (0.4, 0.2)
+
+device = torch.device("mps" if torch.backends.mps.is_available() else None)
+train_loader, valid_loader = get_data(batch_size=64, seed=42)
+criterion = nn.CrossEntropyLoss()
+reg_configs = [
+    {
+        "name": "No Regularization",
+        "dropout_1": 0,
+        "dropout_2": 0,
+    },
+    {
+        "name": "dropout 0.2 0.1",
+        "dropout_1": 0.2,
+        "dropout_2": 0.1,
+    },
+    {
+        "name": "dropout 0.3 0.1",
+        "dropout_1": 0.3,
+        "dropout_2": 0.1,
+    },
+    {
+        "name": "dropout 0.4 0.2",
+        "dropout_1": 0.4,
+        "dropout_2": 0.2,
+    },
+]
+dropout_results = {}
+for reg_config in reg_configs:
+    confs = [
+        ("C", {"kernel": 3, "channels": 16}),
+        ("C", {"kernel": 3, "channels": 32}),
+        ("P", {"kernel": 2}),
+        ("C", {"kernel": 3, "channels": 64}),
+        ("C", {"kernel": 3, "channels": 64}),
+        ("P", {"kernel": 2}),
+        ("L", {"units": 400, "dropout": reg_config["dropout_1"]}),
+        ("L", {"units": 400, "dropout": reg_config["dropout_2"]}),
+    ]
+    model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
+    model.to(device)
+    optimizer = optim.SGD(model.parameters(), lr=0.01)
+    history = train(
+        model,
+        epochs=10,
+        train_loader=train_loader,
+        valid_loader=valid_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        l1_lambda=0,
+        l2_lambda=0,
+    )
+    dropout_results[reg_config["name"]] = history
+
+import json
+with open("dropout_results.json", "w") as f:
+    json.dump(dropout_results, f)
 
 
+import importlib
+import plot_reg
+importlib.reload(plot_reg)
+from plot_reg import plot_regularization_results
+plot_regularization_results(dropout_results)
 
 
-# ## Discussion
-# - To what extent is this goal achieved in the given case?
+# ### Discussion
+# 
+# 1. **Training Loss Behavior**
+#    - All dropout configurations show consistently higher training loss compared to the baseline
+#    - This is expected and desirable, because higher loss indicates the model cannot simply memorize the training data
+# 
+# 2. **Validation Performance**
+#    - The baseline model's validation loss begins increasing after 8 epochs (overfitting)
+#    - Dropout models maintain stable or decreasing validation loss, after 8 epochs
+# 
+# The results show that models with dropout can generalise better.
+
+# ## Conclusion
+# 
+# Even though all regularization methods were effective, dropout showed clear improvement for the validation set across all configurations. While the baseline model's validation loss started to increase, models with dropout continued to learn and improve their accuracy.
 
 # # Batchnorm (without REG, with SGD)
 # - Evaluate whether Batchnorm is useful. Describe what the idea of BN is, what it is supposed to help.
 
-def my_code():
-    pass
+
 
 
 # ## Discussion
