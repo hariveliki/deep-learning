@@ -116,7 +116,7 @@ if __name__ == "__main__":
     train_loader, valid_loader = get_data(batch_size=64, subset_size=1000, seed=42)
     results = train(
         model,
-        epochs=5,
+        epochs=1,
         train_loader=train_loader,
         valid_loader=valid_loader,
         criterion=criterion,

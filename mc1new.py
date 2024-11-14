@@ -441,17 +441,32 @@ plt.show()
 # ### Discussion
 
 # ## Model Complexity
-# We will examine 4 different model variants of different complexity, by using different number of layers, units or filters per layer, and pay attention to the learning curve to ensure the training is stable.
+# We will examine four different model variants with varying levels of complexity by adjusting the number of layers, units, or filters per layer. Additionally, we will monitor the learning curves to ensure that the training process remains stable.
+# 
+# I hypothesize that Tiny ImageNet will benefit from a deeper architecture—specifically, increasing the number of convolutional layers. This enhancement should enable the model to learn more complex patterns, and be get better in differentiation between 200 classes.
+# 
+# For the four proposed model variants, I will progressively increase the number of convolutional layers while decreasing the number of units in each dense layer. This strategy should mitigate overfitting by reducing the total number of parameters.
 
 # ### Model Variant 1
-# `TODO` explain architecture
 # 
-# 3x3 conv, 16
-# 3x3 conv, 32  
-# pool, 2/    
+# **Architecture:**
+# - **Convolutional layers:**
+#   - 3x3 conv, 16 channels
+#   - 3x3 conv, 32 channels
+#   - Pooling layer with kernel size 2
 # 
-# fc 500  
-# fc 500 
+# - **Fully connected layers:**
+#   - fc 500 units
+#   - fc 500 units
+# 
+# **Evaluation:**
+# - This architecture includes two convolutional and two fully connected (linear) layers.
+# - The convolutional layers are effective for capturing spatial patterns within the input images.
+# - The fully connected layers, with 500 units each, significantly increase the number of parameter, which can raises the risk of overfitting.
+# 
+# **Future considerations:**
+# - Increase the number of convolutional layers.
+# - Reduce the number of units in the fully connected layers.
 
 from train_eval import train
 
@@ -462,18 +477,18 @@ confs = [
     ("L", {"units": 500}),
     ("L", {"units": 500}),
 ]
-device = torch.device("mps" if torch.backends.mps.is_available() else None)
-criterion = nn.CrossEntropyLoss()
 model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
 summary(model, (3, 64, 64))
 
 
+device = torch.device("mps" if torch.backends.mps.is_available() else None)
 model.to(device)
+criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 train_loader, valid_loader = get_data(batch_size=64, seed=42)
 results = train(
     model,
-    epochs=5,
+    epochs=20,
     train_loader=train_loader,
     valid_loader=valid_loader,
     criterion=criterion,
@@ -490,16 +505,24 @@ plot_train(results)
 
 
 # ### Model Variant 2
-# `TOOD` explain architecture (Add more layers, reduce fully connected)
 # 
-# 3x3 conv, 16  
-# 3x3 conv, 32  
-# pool, 2/   
-# 3x3 conv, 64  
-# pool, 2/  
+# **Architecture Changes**:
+# - **Convolutional Layers**:
+#   - Initial layers: 3x3 conv, 16 and 3x3 conv, 32.
+#   - Additional layer added: 3x3 conv, 64.
+# - **Pooling**:
+#   - Two pooling layers with a stride of 2.
+#   - Spatial dimension reduced to 14x14.
+# - **Fully Connected Layers**:
+#   - Reduced units in the fully connected layer from 500 to 400.
 # 
-# fc 500  
-# fc 400 
+# **Parameter Impact**:
+# - The added convolutional layer with 64 filters (3x3 kernel) increases parameters by **18,400**.
+# - Reducing the fully connected layer units from 500 to 400 cuts linear parameters by more than half.
+# 
+# **Performance Expectation**:
+# - **Feature Extraction**: Enhanced by the added convolutional layer, increasing the depth of representation.
+# - **Overfitting Reduction**: Simplifying the fully connected layer may reduce overfitting.
 
 from torchsummary import summary
 import importlib
@@ -529,18 +552,18 @@ importlib.reload(train_eval)
 from train_eval import train
 
 device = torch.device("mps" if torch.backends.mps.is_available() else None)
-# model.to(device)
+model.to(device)
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 criterion = nn.CrossEntropyLoss()
-train_loader, valid_loader = get_data(batch_size=64, subset_size=1000, seed=42)
+train_loader, valid_loader = get_data(batch_size=64, seed=42)
 results = train(
     model,
-    epochs=5,
+    epochs=20,
     train_loader=train_loader,
     valid_loader=valid_loader,
     criterion=criterion,
     optimizer=optimizer,
-    device=None,
+    device=device,
 )
 
 
@@ -552,17 +575,24 @@ plot_train(results)
 
 
 # ### Model Variant 3
-# `TODO` Add consecutive cnn layer, reduce fc
 # 
-# 3x3 conv, 16  
-# 3x3 conv, 32  
-# pool, 2/  
-# 3x3 conv, 64  
-# 3x3 conv, 64  
-# pool, 2/  
+# **Architecture**:
 # 
-# fc 500  
-# fc 300 
+# - **Convolution Layers**:
+#   - 3x3 conv, 16 channels
+#   - 3x3 conv, 32 channels
+#   - Pooling layer, stride 2
+#   - 3x3 conv, 64 channels
+#   - 3x3 conv, 64 channels
+#   - Pooling layer, stride 2
+# 
+# - **Fully Connected Layers**:
+#   - fc 500
+#   - fc 300
+# 
+# - **Parameter Increase**: Increased parameters in the convolutional layers from **18,400** to **36,900**, by adding consecutive convolutional layer.
+# - **Output Shape Comparison**: Output shape remains close to the previous architecture, adjusting from **(64, 14, 14)** to **(64, 13, 13)**.
+# - **Overfitting Consideration**: The depth could improve generalization.
 
 from torchsummary import summary
 import importlib
@@ -590,7 +620,7 @@ criterion = nn.CrossEntropyLoss()
 train_loader, valid_loader = get_data(batch_size=64, seed=42)
 results = train(
     model,
-    epochs=5,
+    epochs=20,
     train_loader=train_loader,
     valid_loader=valid_loader,
     criterion=criterion,
@@ -607,45 +637,305 @@ plot_train(results)
 
 
 # ### Model Variant 4
-# Add more cnn and consecutive, reduce fc  
 # 
-# 3x3 conv, 16  
-# 3x3 conv, 32  
-# pool, 2/  
-# 3x3 conv, 64  
-# 3x3 conv, 64  
-# pool, 2/  
-# 3x3 conv, 128  
-# 3x3 conv, 128  
-# pool, 2/  
+# Architecture:
 # 
-# fc 500  
-# fc 200
+# - **Convolutional Layers**:
+#   - **First Stage**: Two 3x3 convolutional layers with 16 and 32 channels, followed by a pooling layer (stride 2) to reduce spatial dimensions.
+#   - **Second Stage**: Two 3x3 convolutional layers with 64 channels, followed by a pooling layer (stride 2).
+#   - **Third Stage**: Two 3x3 convolutional layers with 128 channels, followed by a pooling layer (stride 2).
+# - **Fully Connected Layers**:
+#   - First fully connected layer with 500 units.
+#   - Second fully connected layer with 200 units.
+# 
+# - **Feature Extraction**: The model applies three stages of convolutional layers with increasing channel depth (16, 32, 64, and 128), interspersed with pooling layers to downsample spatial dimensions.
+# - **Gradual Detail Extraction**: Multiple convolutional layers before each pooling step help extract detailed features progressively while reducing spatial dimensions.
+# - **Output Dimensions**: Starting with an input size of (3, 64, 64) for channels, height, and width, the model outputs a final feature map of (128, 4, 4), representing a dense, high-level feature representation.
+# - **Parameter Count**: Approximately 1.4 million parameters, which is the lowest so far.
+# - **Performance Expectation**: With this setup, the model should show the best performance so far by extracting the most patterns and saving them to the feature space.
+# 
+
+from torchsummary import summary
+import importlib
+import cnn
+importlib.reload(cnn)
+from cnn import CNN
+confs = [
+    ("C", {"kernel": 3, "channels": 16}),
+    ("C", {"kernel": 3, "channels": 32}),
+    ("P", {"kernel": 2}),
+    ("C", {"kernel": 3, "channels": 64}),
+    ("C", {"kernel": 3, "channels": 64}),
+    ("P", {"kernel": 2}),
+    ("C", {"kernel": 3, "channels": 128}),
+    ("C", {"kernel": 3, "channels": 128}),
+    ("P", {"kernel": 2}),
+    ("L", {"units": 500}),
+    ("L", {"units": 200}),
+]
+model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
+summary(model, (64, 64, 3))
 
 
+import torch
+import torch.optim as optim
+import torch.nn as nn
+from utils import get_data
+from train_eval import train
+
+device = torch.device("mps" if torch.backends.mps.is_available() else None)
+model.to(device)
+optimizer = optim.SGD(model.parameters(), lr=0.01)
+criterion = nn.CrossEntropyLoss()
+train_loader, valid_loader = get_data(batch_size=64, seed=42)
+results = train(
+    model,
+    epochs=20,
+    train_loader=train_loader,
+    valid_loader=valid_loader,
+    criterion=criterion,
+    optimizer=optimizer,
+    device=device,
+)
+
+
+import importlib
+import plot_train
+importlib.reload(plot_train)
+from plot_train import plot_train
+plot_train(results)
 
 
 # ### Discussion
-# - Variant 1
-# - Variant 2
-# - Variant 3
-# - Variant 4
+# 
+# - Comparing the training and validation loss/accuracy plots from the first to the fourth model variant reveals:
+#   - The gap between training and validation loss narrows.
+#   - The same trend is observed for training and validation accuracy.
+#   - While the validation loss increased after 5 epochs in the first model, it only rises after 15 epochs in the last model.
+#   - Although accuracy on the training set reached 100% for the first three variants, the last layer achieves a maximum accuracy of 35% after 20 epochs.
+#   - The validation accuracy increases alongside the training accuracy, achieving the narrowest gap, but still remains between 15% and 20%.
+# 
+# The steady improvements from the first to the last variant are due to:
+#   - Increasing the number of convolutional layers, which expands the feature space and extracts more patterns from the images.
+#     - This increases the overall parameters only slightly compared to fully connected layers.
+#   - Reducing the units in the fully connected layers, decreasing the total parameters from 14.4 million to 1 million. This simplification prevents the model from overfitting.
 
 # # Regularization
-# - Briefly describe what the goal of regularization methods in general is
+# 
+# Regularization helps mitigate overfitting and enhances a model’s ability to generalize to unseen data. There are several ways to achieve regularization, two of which are:
+# 
+# **L1 and L2 Regularization**  
+# With L1 and L2 regularization, we penalize the model's weights by adding a regularization term to the loss function. This approach reduces the model's reliance on large weights.
+# 
+# - **L1 Regularization**: Adds the absolute value of each weight to the loss function. This encourages sparsity, often driving some weights to zero. The regularized loss function \( L \) with L1 regularization is:
+# 
+#   $$
+#   L = L_0 + \lambda \sum_{i} |w_i|
+#   $$
+# 
+#   where \( L_0 \) is the original loss, \( \lambda \) is the regularization strength, and \( w_i \) are the model weights.
+# 
+# - **L2 Regularization**: Adds the square of each weight to the loss function, discouraging large weights but not forcing them to zero, which helps smooth the learned patterns. The regularized loss function with L2 regularization is:
+# 
+#   $$
+#   L = L_0 + \lambda \sum_{i} w_i^2
+#   $$
+# 
+# **Dropout**  
+# In dropout, we randomly set a proportion \( p \) of units (neurons) to zero for each training update. By disabling certain connections, dropout prevents over-reliance on specific paths.
 
-# ## L1/L2
-# - Explain
+# ## L1/L2 Regularization
+# 
+# We will evaluate both L1 and L2 regularization methods by conducting multiple training runs with different regularization strengths (λ). Each method will be compared against a baseline model without regularization.
+# 
+# **Expectation**
+# 
+# **Training Loss:**
+# - Models with regularization should exhibit higher training loss
+# - This is expected because we're adding penalty terms to the loss function:
+#   - L1: λ∑|w| (sum of absolute weights)
+#   - L2: λ∑w² (sum of squared weights)
+# - The higher loss indicates that we're preventing the model from overfitting to the training data
+# 
+# **Validation Loss:**
+# - Models with regularization should demonstrate:
+#   - Lower validation loss in the long run
+#   - Better generalization to unseen data
+#   - Delayed onset of overfitting
+# - Without regularization:
+#   - Validation loss typically starts increasing early, i.e. shows earlier signs of overfitting
+# - With regularization:
+#   - Validation loss should remain stable for longer
+#   - The gap between training and validation loss should be smaller
+# 
+# We'll test this by comparing the following configurations:
+# - No regularization (baseline)
+# - L1 with λ ∈ {0.0001, 0.001, 0.01}
+# - L2 with λ ∈ {0.0001, 0.001, 0.01}
 
-def my_code():
-    pass
+from torchsummary import summary
+import importlib
+import cnn
+import l1_l2
+importlib.reload(cnn)
+importlib.reload(l1_l2)
+from cnn import CNN
 
+confs = [
+    ("C", {"kernel": 3, "channels": 16}),
+    ("C", {"kernel": 3, "channels": 32}),
+    ("P", {"kernel": 2}),
+    ("C", {"kernel": 3, "channels": 64}),
+    ("C", {"kernel": 3, "channels": 64}),
+    ("P", {"kernel": 2}),
+    ("L", {"units": 500}),
+    ("L", {"units": 300}),
+]
+model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
+summary(model, (64, 64, 3))
+
+
+import torch
+import torch.optim as optim
+import torch.nn as nn
+import l1_l2
+importlib.reload(l1_l2)
+from l1_l2 import train
+from utils import get_data
+
+device = torch.device("mps" if torch.backends.mps.is_available() else None)
+train_loader, valid_loader = get_data(batch_size=64, seed=42)
+criterion = nn.CrossEntropyLoss()
+reg_configs = [
+    {
+        "name": "No Regularization",
+        "l1_lambda": 0,
+        "l2_lambda": 0,
+    },
+    {
+        "name": "l1 0.0001",
+        "l1_lambda": 0.0001,
+        "l2_lambda": 0,
+    },
+    {
+        "name": "l1 0.001",
+        "l1_lambda": 0.001,
+        "l2_lambda": 0,
+    },
+    {
+        "name": "l1 0.01",
+        "l1_lambda": 0.01,
+        "l2_lambda": 0,
+    },
+]
+results = {}
+for reg_config in reg_configs:
+    print(reg_config["name"])
+    model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
+    model.to(device)
+    optimizer = optim.SGD(model.parameters(), lr=0.01)
+    history = train(
+        model,
+        epochs=10,
+        train_loader=train_loader,
+        valid_loader=valid_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        l1_lambda=reg_config["l1_lambda"],
+        l2_lambda=reg_config["l2_lambda"],
+    )
+    results[reg_config["name"]] = history
+    print("\n")
+
+
+import importlib
+import plot_reg
+importlib.reload(plot_reg)
+from plot_reg import plot_regularization_results
+plot_regularization_results(results)
+
+
+import torch
+import torch.optim as optim
+import torch.nn as nn
+import l1_l2
+
+importlib.reload(l1_l2)
+from l1_l2 import train
+from utils import get_data
+
+device = torch.device("mps" if torch.backends.mps.is_available() else None)
+train_loader, valid_loader = get_data(batch_size=64, seed=42)
+criterion = nn.CrossEntropyLoss()
+reg_configs = [
+    {
+        "name": "No Regularization",
+        "l1_lambda": 0,
+        "l2_lambda": 0,
+    },
+    {
+        "name": "l2 0.0001",
+        "l1_lambda": 0,
+        "l2_lambda": 0.0001,
+    },
+    {
+        "name": "l2 0.001",
+        "l1_lambda": 0,
+        "l2_lambda": 0.001,
+    },
+    {
+        "name": "l2 0.01",
+        "l1_lambda": 0,
+        "l2_lambda": 0.01,
+    },
+]
+results = {}
+for reg_config in reg_configs:
+    print(reg_config["name"])
+    model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
+    model.to(device)
+    optimizer = optim.SGD(model.parameters(), lr=0.01)
+    history = train(
+        model,
+        epochs=10,
+        train_loader=train_loader,
+        valid_loader=valid_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        l1_lambda=reg_config["l1_lambda"],
+        l2_lambda=reg_config["l2_lambda"],
+    )
+    results[reg_config["name"]] = history
+    print("\n")
+
+
+import importlib
+import plot_reg
+importlib.reload(plot_reg)
+from plot_reg import plot_regularization_results
+plot_regularization_results(results)
+
+
+# ### Discussion
+# 
+# 1. **Impact of High Regularization**
+# 
+#    - When the regularization strength is too high (λ ∈ {0.001, 0.01}):
+#      - The model shows little to no improvement during training
+#      - Both training and validation losses remain nearly constant
+#      - The plateaued loss indicates that the strong regularization leads to a suboptimal solution, where the model is underfitting
+# 
+# 2. **Benefits of Appropriate Regularization**
+#    - With correctly chosen regularization strength, e.g. (λ = 0.0001):
+#      - The model shows better performance on the validation set, while the unregularized model's validation loss increases over time (indicating overfitting)
+# 
 
 # ## Dropout
 # - Explain
 
-def my_code():
-    pass
+
 
 
 # ## Discussion
