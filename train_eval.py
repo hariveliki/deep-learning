@@ -113,7 +113,6 @@ if __name__ == "__main__":
     model = CNN(dim=64, num_classes=200, confs=confs, in_channels=3)
     optimizer = optim.SGD(model.parameters(), lr=0.01)
     criterion = nn.CrossEntropyLoss()
-    train_loader, valid_loader = get_data(batch_size=64, subset_size=1000, seed=42)
     results = train(
         model,
         epochs=1,
