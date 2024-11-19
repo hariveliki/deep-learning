@@ -32,7 +32,7 @@ def eval(model, valid_loader, criterion, device=None):
     return loss_valid, valid_accuracy
 
 
-def train(model, epochs, train_loader, valid_loader, criterion, optimizer, device=None):
+def train(model, epochs, train_loader, valid_loader, criterion, optimizer, device=None, train_only=False):
     loss_train_hist = []
     loss_valid_hist = []
     train_accuracy_hist = []
@@ -78,7 +78,10 @@ def train(model, epochs, train_loader, valid_loader, criterion, optimizer, devic
         train_accuracy = 100 * correct / total
 
         # Evaluation phase
-        valid_loss, valid_accuracy = eval(model, valid_loader, criterion, device)
+        if train_only:
+            valid_loss, valid_accuracy = 0, 0
+        else:
+            valid_loss, valid_accuracy = eval(model, valid_loader, criterion, device)
 
         # Store metrics
         loss_train_hist.append(loss_train)
